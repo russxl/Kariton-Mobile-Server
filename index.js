@@ -8,11 +8,14 @@ const { log } = require('console');
 const app = express();
 const cron = require('node-cron');
 const { v4: uuidv4 } = require('uuid'); // Import uuid (optional for unique string IDs)
+const cors = require('cors');  // Import CORS
 
 // Helper function to generate 12-digit random number
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.use(cors());
 
 mongoose.connect('mongodb+srv://ads:YGWygUxHRZAxd1NT@cluster0.zchxmu8.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0/JunkShopDB', {
   useNewUrlParser: true
@@ -1811,8 +1814,7 @@ app.post('/api/getHome', async (req, res) => {
   }
 });
 
-app.listen(8080, async ()  => {
-  console.log('Server running on port 8080');
-
-  
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
