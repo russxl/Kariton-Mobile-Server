@@ -9,13 +9,21 @@ const app = express();
 const cron = require('node-cron');
 const { v4: uuidv4 } = require('uuid'); // Import uuid (optional for unique string IDs)
 const cors = require('cors');  // Import CORS
-
+const nodemailer = require('nodemailer');
 // Helper function to generate 12-digit random number
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use(cors());
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail', // Or use another email service provider
+  auth: {
+    user: 'karitonscraps.ph@gmail.com', // Your email
+    pass: 'fegx cchl nsyk zwaq' // Your email password or app-specific password
+  }
+});
 
 mongoose.connect('mongodb+srv://ads:YGWygUxHRZAxd1NT@cluster0.zchxmu8.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0/JunkShopDB', {
   useNewUrlParser: true
@@ -39,6 +47,7 @@ const userSchema = {
   fullname: String,
   phone: Number,
   dateOfReg: String,
+  otp:String,
   token: String,
   customerType:String,
   dateOfBirth: String,
@@ -65,6 +74,7 @@ const junkShopSchema = {
   isRejected: Boolean,
   jShopImg:String,
   description:String,
+  otp:String,
   jShopLocation: String,
   validID:String,
   token:String,
@@ -88,6 +98,7 @@ const barangaySchema = {
   capName: String,
   phone:String,
   isApproved: Boolean,
+  otp:String,
   dateOfReg: String,
   isRejected: Boolean,
   bImg:String,
@@ -205,8 +216,190 @@ const timeOptions = { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit
 function generateUserID() {
   return Math.floor(100000000000 + Math.random() * 900000000000).toString();
 }
+function generateOTP() {
+  return Math.floor(100000 + Math.random() * 900000).toString(); // Generates a 6-digit number as string
+}
+
+// Send OTP
+app.post('/api/send-otp', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    // Find the email in User, Junkshop, and Barangay collections
+    const user = await User.findOne({ email });
+    const junkshop = await JunkShop.findOne({ email });
+    const barangay = await Barangay.findOne({ email });
+
+    const entity = user || junkshop || barangay;
+console.log(entity);
+
+    if (!entity) {
+      return res.status(404).send({
+        status_code: 404,
+        message: "Email not found"
+      });
+    }
+
+    const otp = generateOTP();
+
+    // Save OTP in the corresponding entity (User, Junkshop, or Barangay)
+    await entity.constructor.findOneAndUpdate({ email }, { otp });
+
+    // Send the OTP to the user's email
+    const mailOptions = {
+      from: 'karitonscraps.ph@gmail.com',
+      to: email,
+      subject: 'Your Password Reset OTP',
+      text: `Your OTP for password reset is ${otp}`
+    };
+
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.error(error);
+        return res.status(500).send({
+          status_code: 500,
+          message: "Failed to send OTP"
+        });
+      }
+      res.status(200).send({
+        status_code: 200,
+        message: "OTP sent to email"
+      });
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({
+      status_code: 500,
+      message: "Internal server error"
+    });
+  }
+});
+
+// Verify OTP
+app.post('/api/verify-otp', async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    // Find the email in User, Junkshop, and Barangay collections
+    const user = await User.findOne({ email });
+    const junkshop = await JunkShop.findOne({ email });
+    const barangay = await Barangay.findOne({ email });
+
+    const entity = user || junkshop || barangay;
+    console.log(entity);
+    
+    if (!entity || entity.otp !== otp) {
+      return res.status(400).send({
+        status_code: 400,
+        message: "Invalid OTP"
+      });
+    }
+
+    // OTP verified, clear OTP from the corresponding entity
+    await entity.constructor.findOneAndUpdate({ email }, { otp: null });
+
+    res.status(200).send({
+      status_code: 200,
+      message: "OTP verified successfully"
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({
+      status_code: 500,
+      message: "Internal server error"
+    });
+  }
+});
+
+// Reset Password (after OTP verification)
+// Reset Password (after OTP verification)
+app.post('/api/reset-password', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Find the email in User, Junkshop, and Barangay collections
+    const user = await User.findOne({ email });
+    const junkshop = await JunkShop.findOne({ email });
+    const barangay = await Barangay.findOne({ email });
+
+    const entity = user || junkshop || barangay;
+
+    if (!entity) {
+      return res.status(404).send({
+        status_code: 404,
+        message: "Email not found"
+      });
+    }
+
+    // Hash the new password and update the corresponding entity
+    const hashedPassword = await bcryptjs.hash(password, 8);
+    await entity.constructor.findOneAndUpdate({ email }, { password: hashedPassword });
+
+    // Create a new date instance to capture time and date for the log
+    const date = new Date();
+    const time = date.toLocaleTimeString();
+    const logDate = date.toLocaleDateString();
+
+    // Log the password reset action
+    await Logs.create({
+      logs: `Password reset for ${email}`,
+      time: time,
+      date: logDate,
+      type: "Reset Password",
+      id: entity._id
+    });
+
+    res.status(200).send({
+      status_code: 200,
+      message: "Password reset successful"
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({
+      status_code: 500,
+      message: "Internal server error"
+    });
+  }
+});
+
+app.post('/api/checkUserExist', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    console.log(userId);
+    
+    // Find the email in User, Junkshop, and Barangay collections
+    const user = await User.findOne({ userID:userId });
+  
+
+    
+    if (!user) {
+      return res.status(400).send({
+        status_code: 400,
+        message: "Invalid UserID"
+      });
+    }
 
 
+    res.status(200).send({
+      status_code: 200,
+      exist:true,
+      message: "UserID verified successfully"
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({
+      status_code: 500,
+      message: "Internal server error"
+    });
+  }
+});
+
+
+// Start your server (adjust the port if necessary)
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -830,7 +1023,7 @@ app.post('/api/redeem', async (req, res) => {
         const collection = await Collection.find({barangayID:barangay._id});
    const date = await RedeemSched.findOne({barangayID:barangay._id});
    const scrap =  await Scrap.find({barangayID:barangay._id});
-   
+   const userLogs = await Logs.find({id:barangay._id});
          return res.status(200).send({
            "status_code": 200,
            "message": "User data retrieved",
@@ -915,7 +1108,7 @@ app.post('/api/updateClient', upload.single('img'), async (req, res) => {
         status: 'declined',
       });
       const scrap =  await Scrap.find({junkID:existingJunk._id});
-  
+      const userLogs = await Logs.find({id:existingJunk._id});
       return res.status(200).send({
         "status_code": 200,
         "message": "Junk shop owner data retrieved",
@@ -954,7 +1147,8 @@ app.post('/api/updateClient', upload.single('img'), async (req, res) => {
       const users = await User.find({barangay:existingBarangay.bName})
       const cash = await Reward.findOne({nameOfGood:'Cash'})
       const junks = await JunkShop.find();
-      console.log(cash);
+      const userLogs = await Logs.find({id:existingBarangay._id});
+
       
       return res.status(200).send({
         "status_code": 200,
@@ -1051,10 +1245,12 @@ app.post('/api/saveSched', async (req, res) => {
     const cash = await Reward.findOne({nameOfGood:'Cash'})
     const junks = await JunkShop.find();
     const collection = await Collection.find({barangayID:barangayID})
+    const userLogs =  await Logs.find({id:barangayID});
     console.log(cash);
     
     return res.status(200).send({
       "status_code": 200,
+      userLogs:userLogs,
       "message": "Schedule Saved",
       "barangay": barangay,
       "junk": junks,
@@ -1124,12 +1320,14 @@ app.post('/api/redeemDate', async (req, res) => {
         const users = await User.find({barangay:barangay.bName})
         const cash = await Reward.findOne({nameOfGood:'Cash'})
         const junks = await JunkShop.find();
+        const userLogs = await Logs.find({id:barangay._id})
      
         return res.status(200).send({
           "status_code": 200,
           "message": "Schedule Saved",
           "barangay": barangay,
           "junk": junks,
+          userLogs:userLogs,
           "token": barangay.token,
           "scrap":scrap,
           'users':users,
@@ -1341,11 +1539,12 @@ app.post('/api/scrapConversion', async (req, res) => {
       const cash = await Reward.findOne({ nameOfGood: 'Cash' });
       const junks = await JunkShop.find();
       const collect = await Collected.find()
+      const userLogs =await Logs.find({id:id});
       return res.status(200).send({
         status_code: 200,
         message: action === "Delete" ? "Scrap deleted successfully" : "Scrap updated successfully",
         barangay: barangay,
-        junk: junks,
+        userLogs:userLogs,        junk: junks,
         token: barangay.token,
         scrap: scrap,
         users: users,
@@ -1378,8 +1577,44 @@ app.post('/api/scrapConversion', async (req, res) => {
         console.log('Junkshop scrap updated successfully');
       }
   
+      const pending = await Book.find({
+        jID: existingJunk._id,
+        status: 'pending',
+      });
+      const declined = await Book.find({
+        jID: existingJunk._id,
+        status: 'declined',
+      });
+      const approved = await Book.find({
+        jID: existingJunk._id,
+        status: 'approved',
+      });
+      const done = await Book.find({
+        jID: existingJunk._id,
+        status: 'Done',
+      });
+      
+      const scrap =  await Scrap.find({junkID:existingJunk._id});
+      const adminscraps =  await AdminScrap.find()
+      const userLogs = await Logs.find({id:existingJunk._id})
+    
+      
       return res.status(200).send({
-        message: action === "Delete" ? "Scrap deleted successfully" : "Scrap updated successfully",
+        "status_code": 200,
+        "message": "Junk shop owner data retrieved",
+        "junkOwner": existingJunk,
+        "junk": junk,
+        "token": token,
+        done:done,
+        approved:approved,
+        "userLogs":userLogs,
+        "userType": existingJunk.customerType,
+        'declined':declined,
+        "adminscrap":adminscraps,
+        'pending':pending,
+        'image':existingJunk.jShopImg,
+        'scrap':scrap
+       
       });
 
 
@@ -1416,7 +1651,7 @@ app.post('/api/scrapConversion', async (req, res) => {
      
       // Log the creation of new scrap
       await Logs.create({
-        logs: `New scrap created: ${name} with conversion rate: ${conversion_rate} for ${type} ID: ${id}`,
+        logs: `New scrap created: ${name} with conversion rate: ${conversion_rate} for ID: ${id}`,
         time: new Date().toLocaleTimeString('en-PH'),
         date: new Date().toLocaleDateString('en-PH'),
         type: "Conversion",
@@ -1565,10 +1800,10 @@ app.post('/api/collectScrap', async (req, res) => {
 
       });
       await newLog.save();
-      console.log(`Successfully collected weight: ${weight}kg, scrap type: ${scrapType}. User:${scrapType} gain ${conversion_rate} `);
+    
       
       // Fetch user logs
-      const userLogs = await Logs.find({ barangayID: existingBarangay._id });
+      const userLogs = await Logs.find({ id: existingBarangay._id });
 
       return res.status(200).send({
         userLogs: userLogs,
@@ -1659,9 +1894,10 @@ app.post('/api/pickUp', async (req, res) => {
       status: 'declined'
     }).lean();
     const scrap = await Scrap.find({ junkID: existingJunk._id }).lean();
-
+    const userLogs = await Logs.find({id:existingJunk._id})
     // Send a response with only the necessary fields
     return res.status(200).send({
+      userLogs:userLogs,
       status_code: 200,
       message: "Junk shop owner data retrieved",
       junkOwner: existingJunk,  // Only plain objects should be passed
