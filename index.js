@@ -100,6 +100,7 @@ const barangaySchema = {
   isApproved: Boolean,
   otp:String,
   dateOfReg: String,
+  redeemDate:String,
   isRejected: Boolean,
   bImg:String,
   description:String,
@@ -231,7 +232,6 @@ app.post('/api/send-otp', async (req, res) => {
     const barangay = await Barangay.findOne({ email });
 
     const entity = user || junkshop || barangay;
-console.log(entity);
 
     if (!entity) {
       return res.status(404).send({
@@ -287,7 +287,6 @@ app.post('/api/verify-otp', async (req, res) => {
     const barangay = await Barangay.findOne({ email });
 
     const entity = user || junkshop || barangay;
-    console.log(entity);
     
     if (!entity || entity.otp !== otp) {
       return res.status(400).send({
@@ -368,7 +367,6 @@ app.post('/api/reset-password', async (req, res) => {
 app.post('/api/checkUserExist', async (req, res) => {
   try {
     const { userId } = req.body;
-    console.log(userId);
     
     // Find the email in User, Junkshop, and Barangay collections
     const user = await User.findOne({ userID:userId });
@@ -618,7 +616,6 @@ app.post('/api/register', upload.single('img'), async (req, res) => {
     const img = req.file ? req.file.buffer : null;
     const { name, phone, email, district, barangay,barangayHall, ownerName,barangayPermit,junkshopImage, capName,validIdImage, password, confirmPassword, userType, dateofbirth, address, barangayName, junkShopName } = req.body;
     const imgBase64 = img ? img.toString('base64') : null;
-    console.log(barangayPermit);
     
 
     if (!email || !password || !confirmPassword || !userType) {
@@ -733,7 +730,6 @@ app.post('/api/userData', async (req, res) => {
   try {
     // Find the user by token
     const existingUser = await User.findOne({ token });
-    console.log(token);
     
     // Find all junk shops
     const junk = await JunkShop.find();
@@ -757,7 +753,6 @@ const userLogs = await Logs.find({id:existingUser._id})
 const history =  await Logs.find({userID:existingUser.userID})
 const history1 =  await Logs.find({id:existingUser._id})
 
-      console.log(history);
       
       return res.status(200).send({
         "status_code": 200,
@@ -798,7 +793,6 @@ const history1 =  await Logs.find({id:existingUser._id})
       const scrap =  await Scrap.find({junkID:existingJunk._id});
       const adminscraps =  await AdminScrap.find()
       const userLogs = await Logs.find({id:existingJunk._id})
-      console.log(userLogs);
       
       return res.status(200).send({
         "status_code": 200,
@@ -832,7 +826,6 @@ const history1 =  await Logs.find({id:existingUser._id})
       });
         const userLogs = await Logs.find({id:existingBarangay._id});
         const collectionLogs = await Logs.find({id:existingBarangay._id, type:"Collect"});  
-        console.log(userLogs);
       return res.status(200).send({
         "userLogs":userLogs,
         "status_code": 200,
@@ -913,7 +906,6 @@ app.post('/api/booking', upload.single('img'), async (req, res) => {
     };
 
     resultObject.push(newObject);
-    console.log(resultObject);
 
     await JunkShop.findOneAndUpdate({ _id: jShopID }, { $set: { pendingMessage: resultObject } });
 
@@ -982,12 +974,10 @@ app.post('/api/redeem', async (req, res) => {
   try {
     const { points, user_id, pendingMessages, barangay } = req.body;
 
-    console.log(barangay);
 
     const theBarangay = await Barangay.findOne({ bName: barangay });
     const user = await User.findOne({ _id: user_id });
     const junk = await JunkShop.find();
-    console.log(theBarangay.redeemIsActive);
     
     let userPoints = parseInt(user.points) || 0;  // Default to 0 if parsing fails
     let redeemPoints = parseInt(points) || 0;
@@ -1060,7 +1050,6 @@ app.post('/api/updateClient', upload.single('img'), async (req, res) => {
     const img = req.file ? req.file.buffer : null; // Check if image file exists
     const { fullname, phone, email, district, ownerName, capName, userType, address, location, barangayName, junkShopName } = req.body;
     const imgBase64 = img ? img.toString('base64') : null;
-    console.log(location);
     
     let updateData;
 
@@ -1201,7 +1190,6 @@ app.post('/api/saveSched', async (req, res) => {
 
     // Check if barangayID exists
     const sched = await Collection.find({ barangayID });
-    console.log(sched);
 
     // Define helper function to either update or create schedule
     const upsertSchedule = async (dayOfWeek, dayData) => {
@@ -1246,7 +1234,6 @@ app.post('/api/saveSched', async (req, res) => {
     const junks = await JunkShop.find();
     const collection = await Collection.find({barangayID:barangayID})
     const userLogs =  await Logs.find({id:barangayID});
-    console.log(cash);
     
     return res.status(200).send({
       "status_code": 200,
@@ -1276,32 +1263,37 @@ app.post('/api/saveSched', async (req, res) => {
 app.post('/api/redeemDate', async (req, res) => {
   try {
     const { date, startTime, endTime, description, id } = req.body;
-    console.log(id);
 
     // Find the barangay by ID
-    const theBarangay = await Barangay.findOne({ _id: id });
-    const redeemSched = await RedeemSched.findOne({ barangayID: id });
-
+    const theBarangay = await Barangay.findById(id);
     if (!theBarangay) {
-      console.log('hi');
       return res.status(404).json({ message: "Barangay not found" });
     }
 
+    // Find existing redeem schedule
+    let redeemSched = await RedeemSched.findOne({ barangayID: id });
+
+    // If redeem schedule does not exist, create a new one
     if (!redeemSched) {
-      const sched = new RedeemSched({
+      redeemSched = new RedeemSched({
         date: date,
         startTime: startTime,
         endTime: endTime,
         barangayID: id,
-        description: description
+        description: description,
       });
-      await sched.save();
+      await redeemSched.save();
     } else {
+      // Update the existing redeem schedule
       await RedeemSched.findOneAndUpdate(
         { barangayID: id },
-        { $set: { date: date, startTime: startTime, endTime: endTime, description: description } }
+        { $set: { date, startTime, endTime, description } }
       );
     }
+
+    // Update barangay redeemDate field
+    theBarangay.redeemDate = `Redeeming of goods is on ${date} at ${startTime}`;
+    await theBarangay.save();
 
     // Log the redemption schedule update
     await Logs.create({
@@ -1309,42 +1301,44 @@ app.post('/api/redeemDate', async (req, res) => {
       time: new Date().toLocaleTimeString('en-PH'),
       date: new Date().toLocaleDateString('en-PH'),
       type: "Redemption",
-      id:id
+      id: id,
     });
-    console.log(redeemSched);
-    
-        // Send a successful response
-        const barangay = await Barangay.findOne({_id:id})
-        const scrap =  await Scrap.find({barangayID:id})
-        const reward = await Reward.find({barangayID:id})
-        const users = await User.find({barangay:barangay.bName})
-        const cash = await Reward.findOne({nameOfGood:'Cash'})
-        const junks = await JunkShop.find();
-        const userLogs = await Logs.find({id:barangay._id})
-     
-        return res.status(200).send({
-          "status_code": 200,
-          "message": "Schedule Saved",
-          "barangay": barangay,
-          "junk": junks,
-          userLogs:userLogs,
-          "token": barangay.token,
-          "scrap":scrap,
-          'users':users,
-          "junks":junks,
-          "userType": barangay.customerType,
-          "reward": reward,
-          'cash':cash,
-        });
-    
+
+    // Fetch related data
+    const [barangay, scrap, reward, users, cash, junks, userLogs] = await Promise.all([
+      Barangay.findById(id),
+      Scrap.find({ barangayID: id }),
+      Reward.find({ barangayID: id }),
+      User.find({ barangay: theBarangay.bName }),
+      Reward.findOne({ nameOfGood: 'Cash' }),
+      JunkShop.find({isApproved:true}),
+      Logs.find({ id: theBarangay._id }),
+    ]);
+
+    // Send a successful response
+    return res.status(200).send({
+      "status_code": 200,
+      "message": "Schedule saved",
+      "barangay": barangay,
+      "scrap": scrap,
+      "reward": reward,
+      "users": users,
+      "cash": cash,
+      "junks": junks,
+      "userLogs": userLogs,
+      "token": barangay.token,
+      "userType": barangay.customerType,
+    });
+
   } catch (error) {
     console.log(error);
     res.status(500).send({
       "status_code": 500,
-      "message": "Internal server error"
+      "message": "Internal server error",
     });
   }
 });
+
 
 
 // Background task to update redeemIsActive
@@ -1399,9 +1393,7 @@ app.post('/api/rewardConversion', async (req, res) => {
     const { conversion_rate, name, id, action } = req.body;
 
     // Log the incoming action and name
-    console.log('Action:', action);
-    console.log('Name:', name);
-
+  
     // Find an existing reward with the given name and barangayID
     const existingReward = await Reward.findOne({ nameOfGood: name, barangayID: id });
 
@@ -1500,7 +1492,6 @@ app.post('/api/scrapConversion', async (req, res) => {
   try {
     const { conversion_rate, name, id, type, action } = req.body;
 
-    console.log(type);
 
     // Search for existing scrap by scrapType and id (barangay or junkshop)
     const existingBarangay = await Scrap.findOne({ scrapType: name, barangayID: id });
@@ -1661,7 +1652,6 @@ app.post('/api/scrapConversion', async (req, res) => {
 
       console.log('New scrap created successfully');
      
-      console.log(collect);
       
       return res.status(201).send({
         message: 'New scrap created successfully',
@@ -1685,11 +1675,9 @@ app.post('/api/getBarangay', async (req, res) => {
   try {
     const { email, password } = req.body;
     // Check if email and password are provide  
-    console.log(email);
     
-  const x =  await Barangay.find();
+  const x =  await Barangay.find({isApproved:true});
 
-    console.log(x);
     
       return res.status(200).send({
         "status_code": 200,
@@ -1710,11 +1698,9 @@ app.post('/api/getBarangay', async (req, res) => {
   try {f
     const { email, password } = req.body;
     // Check if email and password are provide  
-    console.log(email);
     
   const x =  await Scrap.find();
 
-    console.log(x);
     
       return res.status(200).send({
         "status_code": 200,
@@ -1748,7 +1734,6 @@ app.post('/api/collectScrap', async (req, res) => {
     
     // Fetch the user and wait for the result
     const user = await User.findOne({ userID: userId });
-    console.log(barangayID);
     
     if (user) {
       // Convert user.points and points from String to int if necessary
@@ -1844,9 +1829,7 @@ app.post('/api/pickUp', async (req, res) => {
       name, id, phone, date, time, scrapType, weight, comments, location
     } = req.body;
 
-    console.log(location);
     const adminscraps = await AdminScrap.find();
-    console.log(adminscraps);
 
     // Find an existing junk shop with the given id
     const existingJunk = await JunkShop.findOne({ _id: id }).lean();  // Use .lean() to get a plain object
@@ -1924,7 +1907,6 @@ app.post('/api/junkShopList', async (req, res) => {
     const {
     id,bID
     } = req.body;
-    console.log(id);
     const barangay = await Barangay.findOne({_id:bID})
     const scrap =  await Scrap.find({barangayID:bID})
     const reward = await Reward.find({barangayID:bID})
@@ -1962,7 +1944,6 @@ app.post('/api/getHome', async (req, res) => {
   try {
     const {
     id , type} = req.body;
-    console.log(id); console.log(type);
     if(type == "Community"){
       'hi'
       const existingUser = await User.findOne({_id:id})
@@ -1975,7 +1956,6 @@ app.post('/api/getHome', async (req, res) => {
  const scrap =  await Scrap.find({barangayID:barangay._id})
  const userLogs = await Logs.find({id:id})
 
- console.log(userLogs);
  
  return res.status(200).send({
    "userLogs":userLogs,
