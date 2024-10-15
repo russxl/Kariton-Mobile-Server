@@ -27,7 +27,8 @@ const transporter = nodemailer.createTransport({
 
 mongoose.connect('mongodb+srv://ads:YGWygUxHRZAxd1NT@cluster0.zchxmu8.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0/JunkShopDB', {
   useNewUrlParser: true
-});
+})  
+
 
 const userSchema = {
   email: {
@@ -416,7 +417,7 @@ app.post('/api/login', async (req, res) => {
     if (!user && !junkOwner && !barangay) {
       return res.status(401).send({
         "status_code": 401,
-        "message": "Invalid email or password"
+        "message": "Please check incorrect email or password."
       });
     }
 
@@ -585,7 +586,9 @@ app.post('/api/registerCommunity', async (req, res) => {
         time: timeOfReg,
         date: dateOfReg,
         type: "Registers",
-        userType:userType
+        userType:userType,
+        id:generatedUserID,
+        name: name
       });
 
       return res.status(200).send({
@@ -752,6 +755,7 @@ const scrap =  await Scrap.find({barangayID:barangay._id})
 const userLogs = await Logs.find({id:existingUser._id})
 const history =  await Logs.find({userID:existingUser.userID})
 const history1 =  await Logs.find({id:existingUser._id})
+console.log(history);
 
       
       return res.status(200).send({
@@ -948,6 +952,7 @@ app.post('/api/booking', upload.single('img'), async (req, res) => {
       time: new Date().toLocaleTimeString('en-PH'),
       date: new Date().toLocaleDateString('en-PH'),
       type: "Schedule Pick Up",
+      name:"Junkshop",
       id:jShopID
     });
 
@@ -1003,6 +1008,7 @@ app.post('/api/redeem', async (req, res) => {
           logs: `User with ID ${user_id} redeemed ${redeemPoints} points in Barangay ${barangay}`,
           time: new Date().toLocaleTimeString('en-PH'),
           date: new Date().toLocaleDateString('en-PH'),
+          name: barangay,
           type: "Redemption",
           id:user_id
         });
@@ -1163,6 +1169,7 @@ app.post('/api/updateClient', upload.single('img'), async (req, res) => {
       time: new Date().toLocaleTimeString('en-PH'),
       date: new Date().toLocaleDateString('en-PH'),
       type: "Update profile details",
+      name:userType
 
     });
 
@@ -1222,6 +1229,7 @@ app.post('/api/saveSched', async (req, res) => {
       time: new Date().toLocaleTimeString('en-PH'),
       date: new Date().toLocaleDateString('en-PH'),
       type: "Barangay Schedule",
+      name:"Barangay",
       id:barangayID
     }); 
 
@@ -1230,7 +1238,7 @@ app.post('/api/saveSched', async (req, res) => {
     const scrap =  await Scrap.find({barangayID:barangayID})
     const reward = await Reward.find({barangayID:barangayID})
     const users = await User.find({barangay:barangay.bName})
-    const cash = await Reward.findOne({nameOfGood:'Cash'})
+    const cash = await Reward.findOne({nameOfGood:'Cash'}) 
     const junks = await JunkShop.find();
     const collection = await Collection.find({barangayID:barangayID})
     const userLogs =  await Logs.find({id:barangayID});
@@ -1301,6 +1309,7 @@ app.post('/api/redeemDate', async (req, res) => {
       time: new Date().toLocaleTimeString('en-PH'),
       date: new Date().toLocaleDateString('en-PH'),
       type: "Redemption",
+      name: theBarangay.bName,
       id: id,
     });
 
@@ -1409,7 +1418,8 @@ app.post('/api/rewardConversion', async (req, res) => {
           time: new Date().toLocaleTimeString('en-PH'),
           date: new Date().toLocaleDateString('en-PH'),
           type: "Rewards",
-          id:id
+          id:id,
+          name:"Barangay"
         });
 
         // Send the response after successful deletion
@@ -1450,7 +1460,8 @@ app.post('/api/rewardConversion', async (req, res) => {
         time: new Date().toLocaleTimeString('en-PH'),
         date: new Date().toLocaleDateString('en-PH'),
         type: "Rewards",
-        id:id
+        id:id,
+          name:"Barangay"
       });
 
       console.log('New reward created successfully');
@@ -1514,7 +1525,7 @@ app.post('/api/scrapConversion', async (req, res) => {
           time: new Date().toLocaleTimeString('en-PH'),
           date: new Date().toLocaleDateString('en-PH'),
           type: "Conversion",
-          name:name,
+          name:"Barangay",
           id:id
           
         });
@@ -1561,7 +1572,8 @@ app.post('/api/scrapConversion', async (req, res) => {
           time: new Date().toLocaleTimeString('en-PH'),
           date: new Date().toLocaleDateString('en-PH'),
           type: "Conversion",
-          id:id
+          id:id,
+          name:"Junkshop"
           
         });
 
@@ -1594,9 +1606,7 @@ app.post('/api/scrapConversion', async (req, res) => {
         "status_code": 200,
         "message": "Junk shop owner data retrieved",
         "junkOwner": existingJunk,
-        "junk": junk,
-        "token": token,
-        done:done,
+                done:done,
         approved:approved,
         "userLogs":userLogs,
         "userType": existingJunk.customerType,
@@ -1766,7 +1776,13 @@ app.post('/api/collectScrap', async (req, res) => {
         });
         await collect.save();
       } else {
-        collection.weight += parseFloat(weight);  // Increment the weight
+        let currWeight = parseInt(collection.weight) || 0;  // Default to 0 if parsing fails
+        let earnedWeight = parseInt(weight) || 0;     // Convert the points to an integer
+        currWeight += earnedWeight;
+
+        collection.weight = currWeight;
+        
+        // Increment the weight
         await collection.save();
       }
 
@@ -1776,7 +1792,7 @@ app.post('/api/collectScrap', async (req, res) => {
         id: barangayID,
         scrapType: scrapType,
         name:user.fullname,
-        logs:`Successfully collected weight: ${weight}kg, scrap type: ${scrapType}. User:${scrapType} gain ${points} ` ,
+        logs:`Successfully collected weight: ${weight}kg, scrap type: ${scrapType}. User:${user.fullname} gain ${points} ` ,
         weight: weight,
         points:points,
         time: new Date().toLocaleTimeString(),
@@ -1855,8 +1871,8 @@ app.post('/api/pickUp', async (req, res) => {
       // Create a new log entry
       const newLog = new Logs({
         logs: `Pickup scheduled for ${name}`,
-        time: time,
-        date: date,
+        time: new Date().toLocaleTimeString(),
+        date: new Date().toLocaleDateString(),
         type: "Pick-up Schedule",
         name: existingJunk.jShopName,
         id: id,
@@ -1950,10 +1966,10 @@ app.post('/api/getHome', async (req, res) => {
       const book = await Book.find({uID: id})
       const barangay =  await Barangay.findOne({bName:existingUser.barangay})
       const cash = await Reward.findOne({nameOfGood:"Cash", barangayID: barangay._id});
-      const reward = await Reward.find({ barangayID: barangay._id});
-      const collection = await Collection.find({barangayID:barangay._id});
- const date = await RedeemSched.findOne({barangayID:barangay._id});
- const scrap =  await Scrap.find({barangayID:barangay._id})
+      const reward = await Reward.find({ barangayID: existingUser._id});
+      const collection = await Collection.find({barangayID:existingUser._id});
+ const date = await RedeemSched.findOne({barangayID:existingUser._id});
+ const scrap =  await Scrap.find({barangayID:existingUser._id})
  const userLogs = await Logs.find({id:id})
 
  
@@ -1997,22 +2013,38 @@ app.post('/api/getHome', async (req, res) => {
 
     }
     else{
-      const pending = await Book.find({
-        jID: id,
+      const existingJunk = await JunkShop.findOne({_id:id});
+    const pending = await Book.find({
+        jID: existingJunk._id,
         status: 'pending',
       });
       const declined = await Book.find({
-        jID: id,
+        jID: existingJunk._id,
         status: 'declined',
       });
-      const scrap =  await Scrap.find({junkID:id});
-      const existingJunk = await JunkShop.findOne({_id:id})
-  
+      const approved = await Book.find({
+        jID: existingJunk._id,
+        status: 'approved',
+      });
+      const done = await Book.find({
+        jID: existingJunk._id,
+        status: 'Done',
+      });
+      
+      const scrap =  await Scrap.find({junkID:existingJunk._id});
+      const adminscraps =  await AdminScrap.find()
+      const userLogs = await Logs.find({id:existingJunk._id})
+      
       return res.status(200).send({
         "status_code": 200,
         "message": "Junk shop owner data retrieved",
         "junkOwner": existingJunk,
+        done:done,
+        approved:approved,
+        "userLogs":userLogs,
+        "userType": existingJunk.customerType,
         'declined':declined,
+        "adminscrap":adminscraps,
         'pending':pending,
         'image':existingJunk.jShopImg,
         'scrap':scrap
