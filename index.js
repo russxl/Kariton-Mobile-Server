@@ -10,6 +10,8 @@ const cron = require('node-cron');
 const { v4: uuidv4 } = require('uuid'); // Import uuid (optional for unique string IDs)
 const cors = require('cors');  // Import CORS
 const nodemailer = require('nodemailer');
+const sharp = require('sharp');
+
 // Helper function to generate 12-digit random number
 
 app.use(express.json());
@@ -62,10 +64,7 @@ const junkShopSchema = {
     required: true,
     type: String,
   },
-  confirmPassword: {
-    required: true,
-    type: String,
-  },
+
   jShopName: String,
   address:String,
   ownerName: String,
@@ -91,10 +90,7 @@ const barangaySchema = {
     required: true,
     type: String,
   },
-  confirmPassword: {
-    required: true,
-    type: String,
-  },
+
   bName: String,
   capName: String,
   phone:String,
@@ -210,8 +206,18 @@ const Collected = mongoose.model("Collected",collectedScrap);
 const AdminScrap = mongoose.model("AdminScrap",adminScraps);
 
 
+
+
 const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+
+const upload = multer({
+    storage: storage,
+    limits: {
+      fileSize: 12 * 1024 * 1024 ,
+      fieldSize:  12 * 1024 * 1024 // 10 MB limit
+    }
+});
+
 const date = new Date();
 const dateOptions = { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' };
 const timeOptions = { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit', second: '2-digit' };
@@ -338,16 +344,18 @@ app.post('/api/reset-password', async (req, res) => {
     await entity.constructor.findOneAndUpdate({ email }, { password: hashedPassword });
 
     // Create a new date instance to capture time and date for the log
-    const date = new Date();
-    const time = date.toLocaleTimeString();
-    const logDate = date.toLocaleDateString();
+    // Get current date and time in PHT
+    const options = { timeZone: 'Asia/Manila', hour12: true, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' };
+    const currentDate = new Intl.DateTimeFormat('en-PH', options).format(new Date());
+    const [date, time] = currentDate.split(', ');
 
     // Log the password reset action
     await Logs.create({
       logs: `Password reset for ${email}`,
       time: time,
-      date: logDate,
+      date: date,
       type: "Reset Password",
+      name:"Resident",
       id: entity._id
     });
 
@@ -422,14 +430,15 @@ app.post('/api/login', async (req, res) => {
     }
 
     const createLog = async (logMessage, userType, userId) => {
-      const date = new Date();
-      const time = date.toLocaleTimeString();
-      const logDate = date.toLocaleDateString();
+      // Get current date and time in PHT
+    const options = { timeZone: 'Asia/Manila', hour12: true, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' };
+    const currentDate = new Intl.DateTimeFormat('en-PH', options).format(new Date());
+    const [date, time] = currentDate.split(', ');
       
       await Logs.create({
         logs: `${userType} with ID ${userId} logged in`,
         time: time,
-        date: logDate,
+        date: date,
         type: "Logins",
         name:userType 
       });
@@ -534,11 +543,10 @@ app.post('/api/login', async (req, res) => {
 
 app.post('/api/registerCommunity', async (req, res) => {
 
-  const date = new Date();
-  const dateOptions = { year: 'numeric', month: 'numeric', day: 'numeric' };
-  const timeOptions = { hour: 'numeric', minute: 'numeric', hour12: true };
-  const dateOfReg = date.toLocaleDateString('en-PH', dateOptions);
-  const timeOfReg = date.toLocaleTimeString('en-PH', timeOptions);
+  // Get current date and time in PHT
+  const options = { timeZone: 'Asia/Manila', hour12: true, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' };
+  const currentDate = new Intl.DateTimeFormat('en-PH', options).format(new Date());
+  const [date, time] = currentDate.split(', ');
 
   try {
     const { name, phone, email, district, barangay, password, confirmPassword, userType, dateofbirth, address } = req.body;
@@ -572,7 +580,7 @@ app.post('/api/registerCommunity', async (req, res) => {
         phone: phone,
         barangay: barangay,
         district: district,
-        dateOfReg: `${dateOfReg} at ${timeOfReg}`,
+        dateOfReg: `${date} at ${time}`,
         customerType: userType,
         dateOfBirth: dateofbirth,
         points: '0'
@@ -583,8 +591,8 @@ app.post('/api/registerCommunity', async (req, res) => {
       // Log the registration activity
       await Logs.create({
         logs: `Community user with ID ${generatedUserID} registered`,
-        time: timeOfReg,
-        date: dateOfReg,
+        time: time,
+        date: date,
         type: "Registers",
         userType:userType,
         id:generatedUserID,
@@ -609,25 +617,52 @@ app.post('/api/registerCommunity', async (req, res) => {
 });
 
 app.post('/api/register', upload.single('img'), async (req, res) => {
-  const date = new Date();
-  const dateOptions = { year: 'numeric', month: 'numeric', day: 'numeric' };
-  const timeOptions = { hour: 'numeric', minute: 'numeric', hour12: true };
-  const dateOfReg = date.toLocaleDateString('en-PH', dateOptions);
-  const timeOfReg = date.toLocaleTimeString('en-PH', timeOptions);
+  // Get current date and time in PHT
+  const options = {
+    timeZone: 'Asia/Manila',
+    hour12: true,
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+  };
+
+  const currentDate = new Intl.DateTimeFormat('en-PH', options).format(new Date());
+  const [date, time] = currentDate.split(', ');
 
   try {
     const img = req.file ? req.file.buffer : null;
-    const { name, phone, email, district, barangay,barangayHall, ownerName,barangayPermit,junkshopImage, capName,validIdImage, password, confirmPassword, userType, dateofbirth, address, barangayName, junkShopName } = req.body;
-    const imgBase64 = img ? img.toString('base64') : null;
-    
+    const {
+      name,
+      phone,
+      email,
+      district,
+      barangay,
+      barangayHall,
+      ownerName,
+      barangayPermit,
+      junkshopImage,
+      capName,
+      validIdImage,
+      password,
+      confirmPassword,
+      userType,
+      dateofbirth,
+      address,
+      barangayName,
+      junkShopName,
+    } = req.body;
 
+    // Validate required fields
     if (!email || !password || !confirmPassword || !userType) {
       return res.status(400).json({ msg: "Required fields are missing." });
     }
 
-    const existingUser = await User.findOne({ email: email });
-    const existingJunk = await JunkShop.findOne({ email: email });
-    const existingBarangay = await Barangay.findOne({ email: email });
+    const existingUser = await User.findOne({ email });
+    const existingJunk = await JunkShop.findOne({ email });
+    const existingBarangay = await Barangay.findOne({ email });
 
     if (existingUser || existingJunk || existingBarangay) {
       return res.status(400).json({ msg: "User with same email already exists." });
@@ -638,63 +673,76 @@ app.post('/api/register', upload.single('img'), async (req, res) => {
     }
 
     const hashedPassword = await bcryptjs.hash(password, 8);
-    const confirmPasswordHashed = await bcryptjs.hash(confirmPassword, 8);
+
     let register;
 
     if (userType === 'Community') {
       register = new User({
-        email: email,
+        email,
         fullname: name,
         password: hashedPassword,
-        confirmPassword: confirmPasswordHashed,
-        phone: phone,
-        barangay: barangay,
-        district: district,
-        dateOfReg: `${dateOfReg} at ${timeOfReg}`,
+        phone,
+        barangay,
+        district,
+        dateOfReg: `${date} at ${time}`,
         customerType: userType,
         dateOfBirth: dateofbirth,
-        points: '0'
+        points: '0',
       });
     } else if (userType === 'Junkshop') {
       register = new JunkShop({
-        email: email,
-        ownerName: ownerName,
+        email,
+        ownerName,
         password: hashedPassword,
-        confirmPassword: confirmPasswordHashed,
-        phone: phone,
-        validID:validIdImage,
-        dateOfReg: `${dateOfReg} at ${timeOfReg}`,
+        phone,
+        validID: validIdImage,
+        dateOfReg: `${date} at ${time}`,
         isApproved: null,
-        address: address,
+        address,
         jShopName: junkShopName,
-        permit:barangayPermit,
-        jShopImg: junkshopImage,
-        customerType: userType
+        permit: barangayPermit,
+        customerType: userType,
       });
     } else if (userType === 'Barangay') {
       register = new Barangay({
-        email: email,
-        capName: capName,
+        email,
+        capName,
         bName: barangayName,
         password: hashedPassword,
-        confirmPassword: confirmPasswordHashed,
-        validID:validIdImage,
-        bLocation:address,
-        phone: phone,
-        dateOfReg: `${dateOfReg} at ${timeOfReg}`,
+        validID: validIdImage,
+        bLocation: address,
+        phone,
+        dateOfReg: `${date} at ${time}`,
         isApproved: null,
-        district: district,
-        permit:barangayPermit,
+        district,
+        permit: barangayPermit,
         bImg: barangayHall,
         customerType: userType,
         bSchedule: {},
         moneyRewards: {},
-        goodsRewards: {}
+        goodsRewards: {},
       });
-   
-      
     } else {
       return res.status(400).json({ msg: "Invalid user type." });
+    }
+
+    // Handle image compression if present
+    if (img) {
+      console.log(`Image size before compression: ${img.length} bytes`);
+      
+      const compressedImageBuffer = await sharp(img)
+        .resize({ width: 800 }) // Adjust size as needed
+        .jpeg({ quality: 80 }) // Compress image to JPEG format
+        .toBuffer();
+
+      console.log(`Compressed image size: ${compressedImageBuffer.length} bytes`);
+
+      if (compressedImageBuffer.length > 17825792) { // Check again after compression
+        return res.status(400).json({ msg: "Image size exceeds limit after compression." });
+      }
+
+      // Store the compressed image as Base64 if necessary
+      register.jShopImg = compressedImageBuffer.toString('base64'); 
     }
 
     await register.save();
@@ -702,26 +750,26 @@ app.post('/api/register', upload.single('img'), async (req, res) => {
     // Log the registration activity
     await Logs.create({
       logs: `${userType} with email ${email} registered`,
-      time: timeOfReg,
-      date: dateOfReg,
+      time,
+      date,
       type: "Registers",
-      name:userType
+      name: userType,
     });
 
     return res.status(200).send({
-      "status_code": 200,
-      "message": "User registration successful",
-      'image': imgBase64
+      status_code: 200,
+      message: "User registration successful",
     });
-
+    
   } catch (err) {
     console.error(err);
     res.status(500).send({
-      "status_code": 500,
-      "message": "Internal server error"
+      status_code: 500,
+      message: "Internal server error",
     });
   }
 });
+
 
 
 
@@ -755,7 +803,6 @@ const scrap =  await Scrap.find({barangayID:barangay._id})
 const userLogs = await Logs.find({id:existingUser._id})
 const history =  await Logs.find({userID:existingUser.userID})
 const history1 =  await Logs.find({id:existingUser._id})
-console.log(history);
 
       
       return res.status(200).send({
@@ -945,12 +992,15 @@ app.post('/api/booking', upload.single('img'), async (req, res) => {
     const junk = await JunkShop.find();
 
     const imgBase64 = img.toString('base64');
-
+ // Get current date and time in PHT
+ const options = { timeZone: 'Asia/Manila', hour12: true, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' };
+ const currentDate = new Intl.DateTimeFormat('en-PH', options).format(new Date());
+ const [date, time] = currentDate.split(', ');
     // Log the schedule pick up activity
     await Logs.create({
       logs: `User with ID ${uID} scheduled a pick up with Junkshop ID ${jShopID}`,
-      time: new Date().toLocaleTimeString('en-PH'),
-      date: new Date().toLocaleDateString('en-PH'),
+      time: time,
+      date: date,
       type: "Schedule Pick Up",
       name:"Junkshop",
       id:jShopID
@@ -1002,12 +1052,15 @@ app.post('/api/redeem', async (req, res) => {
         console.log(user_id);
         let result = userPoints - redeemPoints;
         await User.findOneAndUpdate({ _id: user_id }, { $set: { points: result } });
-
+         // Get current date and time in PHT
+    const options = { timeZone: 'Asia/Manila', hour12: true, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' };
+    const currentDate = new Intl.DateTimeFormat('en-PH', options).format(new Date());
+    const [date1, time] = currentDate.split(', ');
         // Log the redemption activity
         await Logs.create({
           logs: `User with ID ${user_id} redeemed ${redeemPoints} points in Barangay ${barangay}`,
-          time: new Date().toLocaleTimeString('en-PH'),
-          date: new Date().toLocaleDateString('en-PH'),
+          time: time,
+          date: date1,
           name: barangay,
           type: "Redemption",
           id:user_id
@@ -1049,10 +1102,14 @@ app.post('/api/redeem', async (req, res) => {
 
 app.post('/api/updateClient', upload.single('img'), async (req, res) => {
   
-  const dateOfReg = new Date().toLocaleDateString('en-PH', dateOptions);
-  const timeOfReg = new Date().toLocaleTimeString('en-PH', timeOptions);
-  
+ // Get current date and time in PHT
+
   try {
+       // Get current date and time in PHT
+       const options = { timeZone: 'Asia/Manila', hour12: true, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' };
+       const currentDate = new Intl.DateTimeFormat('en-PH', options).format(new Date());
+       const [date, time] = currentDate.split(', ');
+  
     const img = req.file ? req.file.buffer : null; // Check if image file exists
     const { fullname, phone, email, district, ownerName, capName, userType, address, location, barangayName, junkShopName } = req.body;
     const imgBase64 = img ? img.toString('base64') : null;
@@ -1088,7 +1145,7 @@ app.post('/api/updateClient', upload.single('img'), async (req, res) => {
         address: address,
         jShopName: junkShopName,
         jShopImg: imgBase64,
-        dateOfReg: `${dateOfReg} at ${timeOfReg}`,
+        dateOfReg: `${date} at ${time}`,
         customerType: userType,
       };
 
@@ -1106,6 +1163,7 @@ app.post('/api/updateClient', upload.single('img'), async (req, res) => {
       const userLogs = await Logs.find({id:existingJunk._id});
       return res.status(200).send({
         "status_code": 200,
+        "userLogs":userLogs,
         "message": "Junk shop owner data retrieved",
         "junkOwner": existingJunk,
         "userType": existingJunk.customerType,
@@ -1130,7 +1188,7 @@ app.post('/api/updateClient', upload.single('img'), async (req, res) => {
         bLocation: location,
         district: district,
         bImg: imgBase64,
-        dateOfReg: `${dateOfReg} at ${timeOfReg}`,
+        dateOfReg: `${date} at ${time}`,
         customerType: userType,
       };
 
@@ -1140,7 +1198,7 @@ app.post('/api/updateClient', upload.single('img'), async (req, res) => {
       const scrap =  await Scrap.find({barangayID:existingBarangay._id})
       const reward = await Reward.find({barangayID:existingBarangay._id})
       const users = await User.find({barangay:existingBarangay.bName})
-      const cash = await Reward.findOne({nameOfGood:'Cash'})
+      const cash = await Reward.findOne({nameOfGood:'Cash',barangayID:existingBarangay._id})
       const junks = await JunkShop.find();
       const userLogs = await Logs.find({id:existingBarangay._id});
 
@@ -1163,11 +1221,12 @@ app.post('/api/updateClient', upload.single('img'), async (req, res) => {
       return res.status(400).json({ msg: "Invalid user type." });
     }
 
+  
     // Log the profile update activity
     await Logs.create({
       logs: `Profile updated for ${userType} with email: ${email}`,
-      time: new Date().toLocaleTimeString('en-PH'),
-      date: new Date().toLocaleDateString('en-PH'),
+      time: time,
+      date: date,
       type: "Update profile details",
       name:userType
 
@@ -1222,12 +1281,16 @@ app.post('/api/saveSched', async (req, res) => {
     await upsertSchedule('Wednesday', Wednesday);
     await upsertSchedule('Thursday', Thursday);
     await upsertSchedule('Friday', Friday);
-
+    
+     // Get current date and time in PHT
+     const options = { timeZone: 'Asia/Manila', hour12: true, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' };
+     const currentDate = new Intl.DateTimeFormat('en-PH', options).format(new Date());
+     const [date, time] = currentDate.split(', ');
     // Log the schedule save activity
     await Logs.create({
       logs: `Schedule saved for Barangay ID: ${barangayID}`,
-      time: new Date().toLocaleTimeString('en-PH'),
-      date: new Date().toLocaleDateString('en-PH'),
+      time: time,
+      date: date,
       type: "Barangay Schedule",
       name:"Barangay",
       id:barangayID
@@ -1238,7 +1301,7 @@ app.post('/api/saveSched', async (req, res) => {
     const scrap =  await Scrap.find({barangayID:barangayID})
     const reward = await Reward.find({barangayID:barangayID})
     const users = await User.find({barangay:barangay.bName})
-    const cash = await Reward.findOne({nameOfGood:'Cash'}) 
+    const cash = await Reward.findOne({nameOfGood:'Cash',barangayID:existingBarangay._id}) 
     const junks = await JunkShop.find();
     const collection = await Collection.find({barangayID:barangayID})
     const userLogs =  await Logs.find({id:barangayID});
@@ -1302,12 +1365,14 @@ app.post('/api/redeemDate', async (req, res) => {
     // Update barangay redeemDate field
     theBarangay.redeemDate = `Redeeming of goods is on ${date} at ${startTime}`;
     await theBarangay.save();
-
+    const options = { timeZone: 'Asia/Manila', hour12: true, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' };
+    const currentDate = new Intl.DateTimeFormat('en-PH', options).format(new Date());
+    const [date1, time] = currentDate.split(', ');
     // Log the redemption schedule update
     await Logs.create({
       logs: `Redemption schedule saved for Barangay ID: ${id}`,
-      time: new Date().toLocaleTimeString('en-PH'),
-      date: new Date().toLocaleDateString('en-PH'),
+      time: time,
+      date: date1,
       type: "Redemption",
       name: theBarangay.bName,
       id: id,
@@ -1353,24 +1418,43 @@ app.post('/api/redeemDate', async (req, res) => {
 // Background task to update redeemIsActive
 setInterval(async () => {
   try {
-    const currentDate = new Date();
-    const currentDateString = currentDate.toISOString().split('T')[0];
+ // Get current date and time in PHT
+ const options = { 
+  timeZone: 'Asia/Manila', 
+  hour12: true, 
+  year: 'numeric', 
+  month: '2-digit', 
+  day: '2-digit', 
+  hour: 'numeric', 
+  minute: 'numeric'
+};
+
+const currentDate = new Intl.DateTimeFormat('en-PH', options).format(new Date());
+const [datePart, currentTime] = currentDate.split(', '); // Split date and time
+
+// Split the date part into month, day, and year
+const [month, day, year] = datePart.split('/');
+
+// Reformat date to YYYY-MM-DD
+const formattedDate = `${year}-${month}-${day}`;
+
+
+
 
     // Normalize current time by converting to 12-hour format and removing leading zeros
-    let currentTime = currentDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }).toUpperCase();
     
     // Find all redemption schedules
     const allRedeemScheds = await RedeemSched.find();
-
+    
+    
     allRedeemScheds.forEach(async (sched) => {
       const requestDate = new Date(sched.date).toISOString().split('T')[0];
       const startime = sched.startTime.toUpperCase(); // Ensure startime is in uppercase
       const endtime = sched.endTime.toUpperCase(); // Ensure endtime is in uppercase
 
-     
 
       // Check if the current date and time match the scheduled date and time
-      if (requestDate === currentDateString && currentTime === startime) {
+      if (requestDate === formattedDate && currentTime === startime) {
         const barangay = await Barangay.findOne({ _id: sched.barangayID });
         if (barangay) {
           barangay.redeemIsActive = true;
@@ -1380,7 +1464,7 @@ setInterval(async () => {
       } 
       
       // Check if the current time matches the end time
-      if (requestDate === currentDateString && currentTime === endtime) {
+      if (requestDate === formattedDate && currentTime === endtime) {
         const barangay = await Barangay.findOne({ _id: sched.barangayID });
         if (barangay) {
           barangay.redeemIsActive = false;
@@ -1402,7 +1486,9 @@ app.post('/api/rewardConversion', async (req, res) => {
     const { conversion_rate, name, id, action } = req.body;
 
     // Log the incoming action and name
-  
+    const options = { timeZone: 'Asia/Manila', hour12: true, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' };
+    const currentDate = new Intl.DateTimeFormat('en-PH', options).format(new Date());
+    const [date1, time] = currentDate.split(', ');
     // Find an existing reward with the given name and barangayID
     const existingReward = await Reward.findOne({ nameOfGood: name, barangayID: id });
 
@@ -1415,8 +1501,8 @@ app.post('/api/rewardConversion', async (req, res) => {
         // Log the deletion
         await Logs.create({
           logs: `Reward deleted: ${name} for Barangay ID: ${id}`,
-          time: new Date().toLocaleTimeString('en-PH'),
-          date: new Date().toLocaleDateString('en-PH'),
+          time: date1,
+          date: time,
           type: "Rewards",
           id:id,
           name:"Barangay"
@@ -1438,9 +1524,10 @@ app.post('/api/rewardConversion', async (req, res) => {
       // Log the reward update
       await Logs.create({
         logs: `Reward updated: ${name} with new conversion rate: ${conversion_rate} for Barangay ID: ${id}`,
-        time: new Date().toLocaleTimeString('en-PH'),
-        date: new Date().toLocaleDateString('en-PH'),
+        time: time,
+        date: date1,
         type: "Rewards",
+        name: "Barangay",
         id:id
       });
 
@@ -1457,8 +1544,8 @@ app.post('/api/rewardConversion', async (req, res) => {
       // Log the reward creation
       await Logs.create({
         logs: `New reward created: ${name} with conversion rate: ${conversion_rate} for Barangay ID: ${id}`,
-        time: new Date().toLocaleTimeString('en-PH'),
-        date: new Date().toLocaleDateString('en-PH'),
+        time: time,
+        date: date1,
         type: "Rewards",
         id:id,
           name:"Barangay"
@@ -1472,7 +1559,8 @@ app.post('/api/rewardConversion', async (req, res) => {
     const scrap = await Scrap.find({ barangayID: id });
     const rewards = await Reward.find({ barangayID: id });
     const users = await User.find({ barangay: barangay.bName });
-    const cash = await Reward.findOne({ nameOfGood: 'Cash' });
+    const cash = await Reward.findOne({ nameOfGood: 'Cash' ,  barangayID: id });
+
     const junkShops = await JunkShop.find();
     const userLogs = await Logs.find({id:barangay._id})
     return res.status(200).send({
@@ -1504,6 +1592,10 @@ app.post('/api/scrapConversion', async (req, res) => {
     const { conversion_rate, name, id, type, action } = req.body;
 
 
+    // Log the incoming action and name
+    const options = { timeZone: 'Asia/Manila', hour12: true, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' };
+    const currentDate = new Intl.DateTimeFormat('en-PH', options).format(new Date());
+    const [date1, time] = currentDate.split(', ');
     // Search for existing scrap by scrapType and id (barangay or junkshop)
     const existingBarangay = await Scrap.findOne({ scrapType: name, barangayID: id });
     const existingJunk = await Scrap.findOne({ scrapType: name, junkID: id });
@@ -1522,8 +1614,8 @@ app.post('/api/scrapConversion', async (req, res) => {
         // Log the scrap conversion for Barangay
         await Logs.create({
           logs: `Barangay scrap updated: ${name} with new conversion rate: ${conversion_rate} for Barangay ID: ${id}`,
-          time: new Date().toLocaleTimeString('en-PH'),
-          date: new Date().toLocaleDateString('en-PH'),
+          time: time,
+          date: date1,
           type: "Conversion",
           name:"Barangay",
           id:id
@@ -1569,8 +1661,8 @@ app.post('/api/scrapConversion', async (req, res) => {
         // Log the scrap conversion for Junkshop
         await Logs.create({
           logs: `Junkshop scrap updated: ${name} with new conversion rate: ${conversion_rate} for Junkshop ID: ${id}`,
-          time: new Date().toLocaleTimeString('en-PH'),
-          date: new Date().toLocaleDateString('en-PH'),
+          time: time,
+          date: date1,
           type: "Conversion",
           id:id,
           name:"Junkshop"
@@ -1653,8 +1745,8 @@ app.post('/api/scrapConversion', async (req, res) => {
       // Log the creation of new scrap
       await Logs.create({
         logs: `New scrap created: ${name} with conversion rate: ${conversion_rate} for ID: ${id}`,
-        time: new Date().toLocaleTimeString('en-PH'),
-        date: new Date().toLocaleDateString('en-PH'),
+        time: time,
+        date: date1,
         type: "Conversion",
           id:id
         
@@ -1757,6 +1849,10 @@ app.post('/api/collectScrap', async (req, res) => {
       user.points = userPoints;
       await user.save();
 
+
+    const options = { timeZone: 'Asia/Manila', hour12: true, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' };
+    const currentDate = new Intl.DateTimeFormat('en-PH', options).format(new Date());
+    const [date1, time] = currentDate.split(', ');
       // Fetch barangay data and related records
       const existingBarangay = await Barangay.findOne({ _id: barangayID });
       const scrap = await Scrap.find({ barangayID: barangayID });
@@ -1795,8 +1891,8 @@ app.post('/api/collectScrap', async (req, res) => {
         logs:`Successfully collected weight: ${weight}kg, scrap type: ${scrapType}. User:${user.fullname} gain ${points} ` ,
         weight: weight,
         points:points,
-        time: new Date().toLocaleTimeString(),
-        date: new Date().toLocaleDateString(),
+        time: time,
+        date: date1,
         type:"Collect"// Capture the current timestamp
 
       });
@@ -1847,6 +1943,9 @@ app.post('/api/pickUp', async (req, res) => {
 
     const adminscraps = await AdminScrap.find();
 
+    const options = { timeZone: 'Asia/Manila', hour12: true, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' };
+    const currentDate = new Intl.DateTimeFormat('en-PH', options).format(new Date());
+    const [date1, time1] = currentDate.split(', ');
     // Find an existing junk shop with the given id
     const existingJunk = await JunkShop.findOne({ _id: id }).lean();  // Use .lean() to get a plain object
 
@@ -1871,8 +1970,8 @@ app.post('/api/pickUp', async (req, res) => {
       // Create a new log entry
       const newLog = new Logs({
         logs: `Pickup scheduled for ${name}`,
-        time: new Date().toLocaleTimeString(),
-        date: new Date().toLocaleDateString(),
+        time: time1,
+        date: date1,
         type: "Pick-up Schedule",
         name: existingJunk.jShopName,
         id: id,
@@ -1927,7 +2026,7 @@ app.post('/api/junkShopList', async (req, res) => {
     const scrap =  await Scrap.find({barangayID:bID})
     const reward = await Reward.find({barangayID:bID})
     const users = await User.find({barangay:barangay.bName})
-    const cash = await Reward.findOne({nameOfGood:'Cash'})
+    const cash = await Reward.findOne({nameOfGood:'Cash',barangayID:existingBarangay._id})
     const junkShop = await JunkShop.findOne({_id:id});
     const junks = await JunkShop.find();
     const jScrap = await Scrap.find({junkID:id});
@@ -1966,16 +2065,19 @@ app.post('/api/getHome', async (req, res) => {
       const book = await Book.find({uID: id})
       const barangay =  await Barangay.findOne({bName:existingUser.barangay})
       const cash = await Reward.findOne({nameOfGood:"Cash", barangayID: barangay._id});
-      const reward = await Reward.find({ barangayID: existingUser._id});
-      const collection = await Collection.find({barangayID:existingUser._id});
- const date = await RedeemSched.findOne({barangayID:existingUser._id});
- const scrap =  await Scrap.find({barangayID:existingUser._id})
+      const reward = await Reward.find({ barangayID: barangay._id});
+      const collection = await Collection.find({barangayID:barangay._id});
+ const date = await RedeemSched.findOne({barangayID:barangay._id});
+ const scrap =  await Scrap.find({barangayID:barangay._id})
  const userLogs = await Logs.find({id:id})
-
+ const history =  await Logs.find({userID:existingUser.userID})
+ const history1 =  await Logs.find({id:existingUser._id})
+ console.log(existingUser.barangay);
  
  return res.status(200).send({
    "userLogs":userLogs,
          "status_code": 200,
+         "history":{history,history1},  
          "message": "User data retrieved",
          "booking":book,   
          "user": existingUser,
@@ -1992,7 +2094,7 @@ app.post('/api/getHome', async (req, res) => {
     const scrap =  await Scrap.find({barangayID:id})
     const reward = await Reward.find({barangayID:id})
     const users = await User.find({barangay:barangay.bName})
-    const cash = await Reward.findOne({nameOfGood:'Cash'})
+    const cash = await Reward.findOne({nameOfGood:'Cash',barangayID:barangay._id})
     const junkShop = await JunkShop.findOne({_id:id});
     const junks = await JunkShop.find();
     const userLogs = await Logs.find({id:barangay._id})
