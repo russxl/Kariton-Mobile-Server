@@ -1130,7 +1130,15 @@ app.post('/api/updateClient', upload.single('img'), async (req, res) => {
       };
 
       await User.updateOne({ email: email }, updateData);
-      
+      await Logs.create({
+        logs: `Profile updated for ${userType} with email: ${email}`,
+        time: time,
+        date: date,
+        type: "Update profile details",
+        name:userType,
+        id: existingUser._id
+  
+      });
 
     } else if (userType === 'Junkshop') {
       // Check if junk shop exists
@@ -1147,7 +1155,15 @@ app.post('/api/updateClient', upload.single('img'), async (req, res) => {
         jShopImg: imgBase64,
         dateOfReg: `${date} at ${time}`,
         customerType: userType,
-      };
+      };  await Logs.create({
+        logs: `Profile updated for ${userType} with email: ${email}`,
+        time: time,
+        date: date,
+        type: "Update profile details",
+        name:userType,
+        id: existingJunkShop._id
+  
+      });
 
       await JunkShop.updateOne({ email: email }, updateData);
       const existingJunk = await JunkShop.findOne({email:email});
@@ -1201,7 +1217,15 @@ app.post('/api/updateClient', upload.single('img'), async (req, res) => {
       const cash = await Reward.findOne({nameOfGood:'Cash',barangayID:existingBarangay._id})
       const junks = await JunkShop.find();
       const userLogs = await Logs.find({id:existingBarangay._id});
-
+      await Logs.create({
+        logs: `Profile updated for ${userType} with email: ${email}`,
+        time: time,
+        date: date,
+        type: "Update profile details",
+        name:userType,
+        id: existingBarangay._id
+  
+      });
       
       return res.status(200).send({
         "status_code": 200,
@@ -1223,14 +1247,7 @@ app.post('/api/updateClient', upload.single('img'), async (req, res) => {
 
   
     // Log the profile update activity
-    await Logs.create({
-      logs: `Profile updated for ${userType} with email: ${email}`,
-      time: time,
-      date: date,
-      type: "Update profile details",
-      name:userType
-
-    });
+  
 
     return res.status(200).send({
       "status_code": 200,
