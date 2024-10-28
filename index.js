@@ -27,9 +27,10 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-mongoose.connect('mongodb+srv://ads:YGWygUxHRZAxd1NT@cluster0.zchxmu8.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0/JunkShopDB', {
+mongoose.connect('mongodb+srv://russ:Mpe38rRSRP36zWW@cluster0.oswowdu.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0/JunkShopDB', {
   useNewUrlParser: true
 })  
+
 
 
 const userSchema = {
