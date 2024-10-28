@@ -644,7 +644,8 @@ app.post('/api/register', upload.single('img'), async (req, res) => {
       ownerName,
       barangayPermit,
       junkshopImage,
-      capName,
+      barangayHallImage,
+      captainName,
       validIdImage,
       password,
       confirmPassword,
@@ -706,7 +707,7 @@ app.post('/api/register', upload.single('img'), async (req, res) => {
     } else if (userType === 'Barangay') {
       register = new Barangay({
         email,
-        capName,
+        capName:captainName,
         bName: barangayName,
         password: hashedPassword,
         validID: validIdImage,
@@ -1565,7 +1566,7 @@ app.post('/api/rewardConversion', async (req, res) => {
         date: date1,
         type: "Rewards",
         id:id,
-          name:"Barangay"
+        name:"Barangay"
       });
 
       console.log('New reward created successfully');
@@ -1765,6 +1766,7 @@ app.post('/api/scrapConversion', async (req, res) => {
         time: time,
         date: date1,
         type: "Conversion",
+        name: "Barangay",
           id:id
         
       });
@@ -2043,7 +2045,7 @@ app.post('/api/junkShopList', async (req, res) => {
     const scrap =  await Scrap.find({barangayID:bID})
     const reward = await Reward.find({barangayID:bID})
     const users = await User.find({barangay:barangay.bName})
-    const cash = await Reward.findOne({nameOfGood:'Cash',barangayID:existingBarangay._id})
+    const cash = await Reward.findOne({nameOfGood:'Cash',barangayID:bID})
     const junkShop = await JunkShop.findOne({_id:id});
     const junks = await JunkShop.find();
     const jScrap = await Scrap.find({junkID:id});
