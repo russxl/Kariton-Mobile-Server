@@ -32,7 +32,6 @@ mongoose.connect('mongodb+srv://russ:Mpe38rRSRP36zWW@cluster0.oswowdu.mongodb.ne
 })  
 
 
-
 const userSchema = {
   email: {
     required: true,
@@ -449,7 +448,7 @@ app.post('/api/login', async (req, res) => {
       await User.findOneAndUpdate({ email }, { token });
 
       // Log the login activity
-      await createLog("User", "User", user._id);
+ 
 
       return res.status(200).send({
         "status_code": 200,
@@ -478,7 +477,7 @@ app.post('/api/login', async (req, res) => {
       await JunkShop.findOneAndUpdate({ email }, { token });
 
       // Log the login activity
-      await createLog("Junk Shop Owner", "Junk Shop Owner", junkOwner._id);
+ 
 
       return res.status(200).send({
         "status_code": 200,
@@ -508,7 +507,7 @@ app.post('/api/login', async (req, res) => {
       await Barangay.findOneAndUpdate({ email }, { token });
 
       // Log the login activity
-      await createLog("Barangay", "Barangay", barangay._id);
+   
 
       return res.status(200).send({
         "status_code": 200,
