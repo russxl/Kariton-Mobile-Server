@@ -27,7 +27,7 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-mongoose.connect('mongodb+srv://ads:YGWygUxHRZAxd1NT@cluster0.zchxmu8.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0/JunkShopDB', {
+mongoose.connect('mongodb+srv://russ:Mpe38rRSRP36zWW@cluster0.oswowdu.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0/JunkShopDB', {
   useNewUrlParser: true
 })  
 
@@ -429,20 +429,7 @@ app.post('/api/login', async (req, res) => {
       });
     }
 
-    const createLog = async (logMessage, userType, userId) => {
-      // Get current date and time in PHT
-    const options = { timeZone: 'Asia/Manila', hour12: true, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' };
-    const currentDate = new Intl.DateTimeFormat('en-PH', options).format(new Date());
-    const [date, time] = currentDate.split(', ');
-      
-      await Logs.create({
-        logs: `${userType} with ID ${userId} logged in`,
-        time: time,
-        date: date,
-        type: "Logins",
-        name:userType 
-      });
-    };
+
 
     // Check if the user is logging in
     if (user) {
@@ -717,7 +704,7 @@ app.post('/api/register', upload.single('img'), async (req, res) => {
         isApproved: null,
         district,
         permit: barangayPermit,
-        bImg: barangayHall,
+        bImg: barangayHallImage,
         customerType: userType,
         bSchedule: {},
         moneyRewards: {},
@@ -870,7 +857,7 @@ const history1 =  await Logs.find({id:existingUser._id})
       const scrap =  await Scrap.find({barangayID:existingBarangay._id})
       const reward = await Reward.find({barangayID:existingBarangay._id})
       const users = await User.find({barangay:existingBarangay.bName})
-    
+     
       const collected = await Collected.find();
       const cash = await Reward.findOne({
         nameOfGood: 'Cash', 
@@ -878,7 +865,9 @@ const history1 =  await Logs.find({id:existingUser._id})
       });
         const userLogs = await Logs.find({id:existingBarangay._id});
         const collectionLogs = await Logs.find({id:existingBarangay._id, type:"Collect"});  
+        const collection = await Collection.find({barangayID:existingBarangay._id});
       return res.status(200).send({
+        "collection":collection,
         "userLogs":userLogs,
         "status_code": 200,
         "message": "Junk shop owner data retrieved",
@@ -1227,8 +1216,9 @@ app.post('/api/updateClient', upload.single('img'), async (req, res) => {
         id: existingBarangay._id
   
       });
-      
+      const collection = await Collection.find({barangayID:existingBarangay._id});
       return res.status(200).send({
+        "collection":collection,
         "status_code": 200,
         "message": "Schedule Saved",
         "barangay": barangay,
@@ -1319,12 +1309,13 @@ app.post('/api/saveSched', async (req, res) => {
     const scrap =  await Scrap.find({barangayID:barangayID})
     const reward = await Reward.find({barangayID:barangayID})
     const users = await User.find({barangay:barangay.bName})
-    const cash = await Reward.findOne({nameOfGood:'Cash',barangayID:existingBarangay._id}) 
+    const cash = await Reward.findOne({nameOfGood:'Cash',barangayID:barangay._id}) 
     const junks = await JunkShop.find();
     const collection = await Collection.find({barangayID:barangayID})
     const userLogs =  await Logs.find({id:barangayID});
-    
+   
     return res.status(200).send({
+      "collection":collection,
       "status_code": 200,
       userLogs:userLogs,
       "message": "Schedule Saved",
@@ -1407,8 +1398,9 @@ app.post('/api/redeemDate', async (req, res) => {
       Logs.find({ id: theBarangay._id }),
     ]);
 
-    // Send a successful response
-    return res.status(200).send({
+    const collection = await Collection.find({barangayID:barangay._id});
+      return res.status(200).send({
+        "collection":collection,
       "status_code": 200,
       "message": "Schedule saved",
       "barangay": barangay,
@@ -1581,7 +1573,9 @@ app.post('/api/rewardConversion', async (req, res) => {
 
     const junkShops = await JunkShop.find();
     const userLogs = await Logs.find({id:barangay._id})
+    const collection = await Collection.find({barangayID:barangay._id});
     return res.status(200).send({
+      "collection":collection,
       userLogs:userLogs,
       status_code: 200,
       message: 'Reward processed successfully',
@@ -1652,7 +1646,9 @@ app.post('/api/scrapConversion', async (req, res) => {
       const junks = await JunkShop.find();
       const collect = await Collected.find()
       const userLogs =await Logs.find({id:id});
+      const collection = await Collection.find({barangayID:existingBarangay._id});
       return res.status(200).send({
+        "collection":collection,
         status_code: 200,
         message: action === "Delete" ? "Scrap deleted successfully" : "Scrap updated successfully",
         barangay: barangay,
@@ -1920,8 +1916,9 @@ app.post('/api/collectScrap', async (req, res) => {
       
       // Fetch user logs
       const userLogs = await Logs.find({ id: existingBarangay._id });
-
+      const collections = await Collection.find({barangayID:existingBarangay._id});
       return res.status(200).send({
+        "collection":collections,
         userLogs: userLogs,
         status_code: 200,
         message: "Junk shop owner data retrieved",
@@ -2117,7 +2114,9 @@ app.post('/api/getHome', async (req, res) => {
     const junkShop = await JunkShop.findOne({_id:id});
     const junks = await JunkShop.find();
     const userLogs = await Logs.find({id:barangay._id})
-    return res.status(200).send({
+    const collection = await Collection.find({barangayID:barangay._id});
+      return res.status(200).send({
+        "collection":collection,
       "userLogs":userLogs,
       "status_code": 200,
       "message": "Junk shop owner data retrieved",
@@ -2154,7 +2153,7 @@ app.post('/api/getHome', async (req, res) => {
       
       const scrap =  await Scrap.find({junkID:existingJunk._id});
       const adminscraps =  await AdminScrap.find()
-      const userLogs = await Logs.find({id:existingJunk._id})
+      const userLogs = await Logs.find({id:existingJunk._id}) 
       
       return res.status(200).send({
         "status_code": 200,
