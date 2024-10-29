@@ -1511,8 +1511,8 @@ app.post('/api/rewardConversion', async (req, res) => {
         // Log the deletion
         await Logs.create({
           logs: `Reward deleted: ${name} for Barangay ID: ${id}`,
-          time: date1,
-          date: time,
+          time: time,
+          date: date1,
           type: "Rewards",
           id:id,
           name:"Barangay"
