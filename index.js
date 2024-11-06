@@ -124,6 +124,7 @@ const logSchema = {
   name:String,
   id:String,
   scrapType:String,
+  barangayName:String,
   points:String,
   weight:String,
   userID:String
@@ -138,7 +139,8 @@ const adminCred = {
 const bookingSchema = {
   setScheduledDate: String,
   time:String,
-  uID: String,
+  barangayID: String,
+  uID:String,
   jID:String,
   jShop:String,
   location: String,
@@ -185,6 +187,7 @@ const collectedScrap = {
   barangayID:String,
   scrapType:String,
   weight:String,
+  eligibleWeight:String
 
 }
 const adminScraps = {
@@ -858,6 +861,7 @@ const history1 =  await Logs.find({id:existingUser._id})
       const reward = await Reward.find({barangayID:existingBarangay._id})
       const users = await User.find({barangay:existingBarangay.bName})
      
+      
       const collected = await Collected.find();
       const cash = await Reward.findOne({
         nameOfGood: 'Cash', 
@@ -866,10 +870,19 @@ const history1 =  await Logs.find({id:existingUser._id})
         const userLogs = await Logs.find({id:existingBarangay._id});
         const collectionLogs = await Logs.find({id:existingBarangay._id, type:"Collect"});  
         const collection = await Collection.find({barangayID:existingBarangay._id});
-      return res.status(200).send({
+        const collectionRequests = await Book.find({
+          barangayID: existingBarangay._id,
+          uID: { $ne: null }
+        });
+        const pickup =  await Book.find({barangayID:existingBarangay._id});
+    
+        return res.status(200).send({
+          "pickup":pickup,
+        collectionRequests,
         "collection":collection,
         "userLogs":userLogs,
         "status_code": 200,
+
         "message": "Junk shop owner data retrieved",
         "barangay": existingBarangay,
         "junk": junk,
@@ -1217,7 +1230,18 @@ app.post('/api/updateClient', upload.single('img'), async (req, res) => {
   
       });
       const collection = await Collection.find({barangayID:existingBarangay._id});
+
+      const collectionRequests = await Book.find({
+        barangayID: existingBarangay._id,
+        uID: { $ne: null }
+      });
+      const collectionLogs = await Logs.find({id:existingBarangay._id, type:"Collect"});  
+      const pickup =  await Book.find({barangayID:existingBarangay._id});
+    
       return res.status(200).send({
+        "pickup":pickup,
+        "collectionLogs":collectionLogs,
+      collectionRequests,
         "collection":collection,
         "status_code": 200,
         "message": "Schedule Saved",
@@ -1314,7 +1338,9 @@ app.post('/api/saveSched', async (req, res) => {
     const collection = await Collection.find({barangayID:barangayID})
     const userLogs =  await Logs.find({id:barangayID});
    
+    const collectionLogs = await Logs.find({id:existingBarangay._id, type:"Collect"});  
     return res.status(200).send({
+      "collectionLogs":collectionLogs,
       "collection":collection,
       "status_code": 200,
       userLogs:userLogs,
@@ -1399,7 +1425,21 @@ app.post('/api/redeemDate', async (req, res) => {
     ]);
 
     const collection = await Collection.find({barangayID:barangay._id});
-      return res.status(200).send({
+
+    const collectionRequests = await Book.find({
+      barangayID: barangay._id,
+      uID: { $ne: null }
+    });
+    const collectionLogs = await Logs.find({id:barangay._id, type:"Collect"});  
+    const pickup =  await Book.find({barangayID:barangay._id});
+    
+    
+    
+    return res.status(200).send({
+
+      "pickup":pickup,
+      "collectionLogs":collectionLogs,
+    collectionRequests,
         "collection":collection,
       "status_code": 200,
       "message": "Schedule saved",
@@ -1574,7 +1614,18 @@ app.post('/api/rewardConversion', async (req, res) => {
     const junkShops = await JunkShop.find();
     const userLogs = await Logs.find({id:barangay._id})
     const collection = await Collection.find({barangayID:barangay._id});
-    return res.status(200).send({
+
+      const collectionRequests = await Book.find({
+          barangayID: existingBarangay._id,
+          uID: { $ne: null }
+        });
+        const collectionLogs = await Logs.find({id:existingBarangay._id, type:"Collect"});  
+        const pickup =  await Book.find({barangayID:existingBarangay._id});
+    
+        return res.status(200).send({
+          "pickup":pickup,
+          "collectionLogs":collectionLogs,
+        collectionRequests,
       "collection":collection,
       userLogs:userLogs,
       status_code: 200,
@@ -1647,7 +1698,17 @@ app.post('/api/scrapConversion', async (req, res) => {
       const collect = await Collected.find()
       const userLogs =await Logs.find({id:id});
       const collection = await Collection.find({barangayID:existingBarangay._id});
+      const collectionRequests = await Book.find({
+        barangayID: existingBarangay._id,
+        uID: { $ne: null }
+      });
+      const collectionLogs = await Logs.find({id:existingBarangay._id, type:"Collect"});  
+      const pickup =  await Book.find({barangayID:existingBarangay._id});
+    
       return res.status(200).send({
+        "pickup":pickup,
+        "collectionLogs":collectionLogs,
+      collectionRequests,
         "collection":collection,
         status_code: 200,
         message: action === "Delete" ? "Scrap deleted successfully" : "Scrap updated successfully",
@@ -1736,22 +1797,14 @@ app.post('/api/scrapConversion', async (req, res) => {
           junkID: id,
         });
 
-        const collectedScrap = new Collected({
-          junkID:id,
-          scrapType:name,
-        });
-        await collectedScrap.save();
+      
       } else {
         newScrap = new Scrap({
           scrapType: name,
           pointsEquivalent: conversion_rate,
           barangayID: id,
         });
-        const collectedScrap = new Collected({
-          barangayID:id,
-          scrapType:name,
-        });
-        await collectedScrap.save();
+      
       }
 
       await newScrap.save();
@@ -1812,7 +1865,7 @@ app.post('/api/getBarangay', async (req, res) => {
     });
   }
 });app.post('/api/getScrap', async (req, res) => {  
-  try {f
+  try {
     const { email, password } = req.body;
     // Check if email and password are provide  
     
@@ -1840,6 +1893,7 @@ app.post('/api/collectScrap', async (req, res) => {
   try {
     const {
       conversion_rate,
+      transactionID,
       scrapType,
       weight,
       points,
@@ -1851,6 +1905,7 @@ app.post('/api/collectScrap', async (req, res) => {
     
     // Fetch the user and wait for the result
     const user = await User.findOne({ userID: userId });
+    console.log(transactionID);
     
     if (user) {
       // Convert user.points and points from String to int if necessary
@@ -1874,7 +1929,11 @@ app.post('/api/collectScrap', async (req, res) => {
       const users = await User.find({ barangay: existingBarangay.bName });
       const junks = await JunkShop.find();
       const collection = await Collected.findOne({ barangayID: barangayID, scrapType: scrapType });
-
+       await Book.findOneAndUpdate(
+        { _id: transactionID },
+        { $set: { status: 'Done' } },
+        { new: true } // This option returns the updated document
+      );
       // Update or create a collection
       if (!collection) {
         const collect = new Collected({
@@ -1884,15 +1943,18 @@ app.post('/api/collectScrap', async (req, res) => {
           date: new Date().toLocaleDateString(),
           userId: userId,
           name: name,
+          eligibleWeight:weight
         });
         await collect.save();
       } else {
         let currWeight = parseInt(collection.weight) || 0;  // Default to 0 if parsing fails
-        let earnedWeight = parseInt(weight) || 0;     // Convert the points to an integer
+        let earnedWeight = parseInt(weight) || 0; 
+        let eligibleWeight = parseInt(collection.eligibleWeight) || 0 
+        // Convert the points to an integer
         currWeight += earnedWeight;
-
+        eligibleWeight += earnedWeight
         collection.weight = currWeight;
-        
+        collection.eligibleWeight = eligibleWeight;
         // Increment the weight
         await collection.save();
       }
@@ -1902,6 +1964,7 @@ app.post('/api/collectScrap', async (req, res) => {
         userID: userId,
         id: barangayID,
         scrapType: scrapType,
+        barangayName: existingBarangay.bName,
         name:user.fullname,
         logs:`Successfully collected weight: ${weight}kg, scrap type: ${scrapType}. User:${user.fullname} gain ${points} ` ,
         weight: weight,
@@ -1917,7 +1980,17 @@ app.post('/api/collectScrap', async (req, res) => {
       // Fetch user logs
       const userLogs = await Logs.find({ id: existingBarangay._id });
       const collections = await Collection.find({barangayID:existingBarangay._id});
+      const collectionRequests = await Book.find({
+        barangayID: existingBarangay._id,
+        uID: { $ne: null }
+      });
+      const collectionLogs = await Logs.find({id:existingBarangay._id, type:"Collect"});  
+      const pickup =  await Book.find({barangayID:existingBarangay._id});
+    
       return res.status(200).send({
+        "pickup":pickup,
+        "collectionLogs":collectionLogs,
+      collectionRequests,
         "collection":collections,
         userLogs: userLogs,
         status_code: 200,
@@ -1953,9 +2026,10 @@ app.post('/api/collectScrap', async (req, res) => {
 app.post('/api/pickUp', async (req, res) => {
   try {
     const {
-      conversion_rate,
+      conversion_rate, junkID,barangayID,
       name, id, phone, date, time, scrapType, weight, comments, location
     } = req.body;
+console.log(req.body);
 
     const adminscraps = await AdminScrap.find();
 
@@ -1963,9 +2037,10 @@ app.post('/api/pickUp', async (req, res) => {
     const currentDate = new Intl.DateTimeFormat('en-PH', options).format(new Date());
     const [date1, time1] = currentDate.split(', ');
     // Find an existing junk shop with the given id
+    const existingBarangay =  await Barangay.findOne({_id:id});
     const existingJunk = await JunkShop.findOne({ _id: id }).lean();  // Use .lean() to get a plain object
-
-    if (existingJunk) {
+    const existingUser = await User.findOne({ _id: id }).lean();  // Use .
+    if (existingJunk !== null) {
       // Create a new Book (booking) document
       const newScrap = new Book({
         setScheduledDate: date,
@@ -1996,9 +2071,8 @@ app.post('/api/pickUp', async (req, res) => {
       });
 
       await newLog.save();
-    }
 
-    // Fetch related data
+       // Fetch related data
     const pending = await Book.find({
       jID: existingJunk._id,
       status: 'pending'
@@ -2022,7 +2096,144 @@ app.post('/api/pickUp', async (req, res) => {
       scrap: scrap,
       adminscrap: adminscraps
     });
+   
+    }
+    else if(existingUser){
+        // Create a new Book (booking) document
+        const newScrap = new Book({
+          uID: existingUser.userID,
+          barangayID:barangayID,
+          status: "pending",
+          scrapType: scrapType,
+          name: name,
+        });
+  
+        await newScrap.save();
+  
+        // Create a new log entry
+        const newLog = new Logs({
+          logs: `Collection request for ${name}`,
+          time: time1,
+          date: date1,
+          type: "Notify Collection",
+          name: name,
+          id:barangayID ,
+          scrapType: scrapType,
+        });
+  
+        await newLog.save();
+        const book = await Book.find({uID:existingUser._id})
+        const barangay =  await Barangay.findOne({bName:existingUser.barangay})
+        const cash = await Reward.findOne({nameOfGood:"Cash", barangayID: barangayID});
+        const reward = await Reward.find({ barangayID: barangayID});
+   const date = await RedeemSched.findOne({barangayID : barangayID});
+   const scrap =  await Scrap.find({barangayID : barangayID})
+   const userLogs = await Logs.find({id: existingUser._id})
+   const history =  await Logs.find({userID: existingUser.userID})
+   const history1 =  await Logs.find({id:existingUser._id})
+   const collection = await Collection.find({barangayID : barangayID});
+   const collectionLogs = await Logs.find({id:barangayID, type:"Collect"});  
+   return res.status(200).send({
+          "collectionLogs":collectionLogs,
+          'collection':collection,
+           "status_code": 200,
+           "message": "User data retrieved",
+           "booking":book, 
+           "history":{history,history1},  
+           "userLogs":userLogs,
+           "user": existingUser,
+           "barangay":barangay,
+           'junkOwner': existingJunk,
+           "userType": existingUser.customerType,
+          'cash':cash,
+           "reward":reward,
+       
+           'redeemDate':date,
+           'scraps':scrap
+         });
 
+    }
+    else{
+  
+      
+      const existingJunk = await JunkShop.findOne({ _id: junkID }).lean(); 
+      const existingBarangay = await Barangay.findOne({_id:id})
+       // Create a new Book (booking) document
+       const newScrap = new Book({
+        setScheduledDate: date,
+        time: time,
+        jID: junkID,
+        weight: weight,
+        phone: phone,
+        barangayID:id,
+        status: "pending",
+        jShop: existingBarangay.bName,
+        location: existingBarangay.bLocation,
+        scrapType: scrapType,
+        description: comments,
+        name: name,
+      });
+
+      await newScrap.save();
+
+      // Create a new log entry
+      const newLog = new Logs({
+        logs: `Pickup scheduled for ${name}`,
+        time: time1,
+        date: date1,
+        type: "Pick-up Schedule",
+        name: existingJunk.jShopName,
+        id: id,
+        scrapType: scrapType,
+        weight: weight,
+      });
+        newLog.save();
+
+
+          
+      const scrap =  await Scrap.find({barangayID:existingBarangay._id})
+      const reward = await Reward.find({barangayID:existingBarangay._id})
+      const users = await User.find({barangay:existingBarangay.bName})
+  
+      const collected = await Collected.find();
+      const cash = await Reward.findOne({
+        nameOfGood: 'Cash', 
+        barangayID: existingBarangay._id
+      });
+        const userLogs = await Logs.find({id:existingBarangay._id});
+      
+        const collection = await Collection.find({barangayID:existingBarangay._id});
+        
+        const collectionRequests = await Book.find({
+          barangayID: existingBarangay._id,
+          uID: { $ne: null }
+        });
+        const pickup =  await Book.find({barangayID:existingBarangay._id});
+        const collectionLogs = await Logs.find({id:existingBarangay._id, type:"Collect"});  
+        const junks = await JunkShop.find();
+      return res.status(200).send({
+        "pickup":pickup,
+        "collectionLogs":collectionLogs,
+        collectionRequests,
+        "collection":collection,
+        "userLogs":userLogs,
+        "status_code": 200,
+        "message": "Junk shop owner data retrieved",
+        "barangay": existingBarangay,
+        "junk": junks,
+    
+     
+        "scrap":scrap,
+        'users':users,
+        "userType": existingBarangay.customerType,
+        "reward": reward,
+        'cash':cash
+      
+       
+      });
+    }
+
+   
   } catch (error) {
     console.error('Error processing request:', error);
     res.status(500).send({
@@ -2037,7 +2248,10 @@ app.post('/api/junkShopList', async (req, res) => {
   try {
     const {
     id,bID
+    
     } = req.body;
+    console.log(id);
+
     const barangay = await Barangay.findOne({_id:bID})
     const scrap =  await Scrap.find({barangayID:bID})
     const reward = await Reward.find({barangayID:bID})
@@ -2046,8 +2260,16 @@ app.post('/api/junkShopList', async (req, res) => {
     const junkShop = await JunkShop.findOne({_id:id});
     const junks = await JunkShop.find();
     const jScrap = await Scrap.find({junkID:id});
-    const userLogs = await Logs.find({id:id})
+    const userLogs = await Logs.find({id:id});
+    const collectionRequests = await Book.find({
+      barangayID: bID,
+      uID: { $ne: null }
+    });
+    const pickup =  await Book.find({barangayID:bID});
+    
     return res.status(200).send({
+      "pickup":pickup,
+    collectionRequests,
       "userLogs":userLogs,
       "status_code": 200,
       "message": "Junk shop owner data retrieved",
@@ -2056,6 +2278,7 @@ app.post('/api/junkShopList', async (req, res) => {
       "token": barangay.token,
       "junkShop":junkShop,
       "scrap":scrap,
+      "junkshopID":id,
       'users':users,
       "userType": barangay.customerType,
       "reward": reward,
@@ -2088,7 +2311,7 @@ app.post('/api/getHome', async (req, res) => {
  const userLogs = await Logs.find({id:id})
  const history =  await Logs.find({userID:existingUser.userID})
  const history1 =  await Logs.find({id:existingUser._id})
- console.log(existingUser.barangay);
+
  
  return res.status(200).send({
    "userLogs":userLogs,
@@ -2115,7 +2338,15 @@ app.post('/api/getHome', async (req, res) => {
     const junks = await JunkShop.find();
     const userLogs = await Logs.find({id:barangay._id})
     const collection = await Collection.find({barangayID:barangay._id});
-      return res.status(200).send({
+    const collectionRequests = await Book.find({
+      barangayID: barangay._id,
+      uID: { $ne: null }
+    });
+    const pickup =  await Book.find({barangayID:barangay._id});
+    
+    return res.status(200).send({
+      "pickup":pickup,
+    collectionRequests,
         "collection":collection,
       "userLogs":userLogs,
       "status_code": 200,
